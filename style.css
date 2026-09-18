@@ -1,127 +1,320 @@
+function num(id){ var el=document.getElementById(id); var v=parseFloat(el.value); return isNaN(v)?0:v; }
+function txt(id){ return document.getElementById(id).value.trim(); }
+function fmtMoney(n){ var s=n<0?'-':''; return s+'$'+Math.round(Math.abs(n)).toLocaleString('es-ES'); }
+function fmtPct(n){ return (n>=0?'+':'')+n.toFixed(1)+'%'; }
+function fmtNum(n){ return Math.round(n).toLocaleString('es-ES'); }
+function fmtImpacto(v){ return (typeof v==='number' && !isNaN(v) && v!==0) ? fmtMoney(v) : null; }
 
-  :root{
-    --bg-page:#F2F4F5; --bg-card:#FFFFFF; --border:#DCE1E4; --border-strong:#B7C0C6;
-    --ink:#14202B; --ink-secondary:#55636F; --ink-muted:#8A97A1;
-    --accent:#0E7A72; --accent-soft:#E1F1EF;
-    --danger:#B0362E; --danger-soft:#F8E7E5;
-    --warning:#A8710E; --warning-soft:#F6EDDB;
-    --success:#29875A; --success-soft:#E4F2EA;
-    --mono:'JetBrains Mono', ui-monospace, monospace;
-    --sans:'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+var LEVERS = {
+  abasto:['Identificar los SKUs con stock bajo o agotado','Confirmar fechas de resurtido','Priorizar productos con mayor demanda perdida','Definir sustitutos cuando no haya disponibilidad'],
+  digital:['Mostrar alternativas mientras se resuelve el stock','Mejorar recomendaciones de sustitutos','Revisar mensajes de disponibilidad','Revisar el flujo PDP → carrito → checkout en mobile'],
+  crm:['Identificar clientes recurrentes afectados','Activar comunicación cuando vuelva el producto','Sugerir sustitutos relevantes','Medir recuperación de esos clientes']
+};
+var LEVER_NAMES = {abasto:'Abasto', digital:'Producto digital', crm:'CRM'};
+var CANAL_NAMES = {ecommerce:'Ecommerce', app:'App', whatsapp:'WhatsApp', llamadas:'Llamadas'};
+var CSV_FIELD_MAP = {
+  'meta':'inp-meta', 'venta_actual':'inp-venta-actual', 'dias_transcurridos':'inp-dias-t', 'dias_totales':'inp-dias-total',
+  'venta_yoy':'inp-yoy-base', 'venta_mom':'inp-mom-base',
+  'sesiones_actual':'inp-ses-a', 'sesiones_base':'inp-ses-b', 'cr_actual':'inp-cr-a', 'cr_base':'inp-cr-b',
+  'aov_actual':'inp-aov-a', 'aov_base':'inp-aov-b',
+  'pedidos_nuevos_actual':'inp-pn-a', 'pedidos_nuevos_base':'inp-pn-b',
+  'pedidos_recurrentes_actual':'inp-pr-a', 'pedidos_recurrentes_base':'inp-pr-b',
+  'frecuencia_actual':'inp-fr-a', 'frecuencia_base':'inp-fr-b'
+};
+
+function canalEsDirecto(canal){ return canal==='llamadas' || canal==='whatsapp'; }
+function driverWord(name, canal){
+  var d = canalEsDirecto(canal);
+  if(name==='sesiones') return d ? 'una caída de interacciones' : 'una caída de tráfico';
+  if(name==='cr') return d ? 'una caída en la tasa de cierre' : 'una caída de conversión';
+  return 'una caída del ticket promedio';
+}
+
+function planRecurrentes(skuCount, deviceLabel, categoryLabel, frecuenciaCae){
+  if(skuCount>0){
+    return {palanca:'Abasto, producto digital y CRM (ver plan de acción abajo)', dueno:'Abasto — acción directa', showPlan:true, groups:['abasto','digital','crm']};
+  } else if(deviceLabel || categoryLabel){
+    return {palanca:'CRM y producto digital (ver plan de acción abajo)', dueno:'CRM — escalar', showPlan:true, groups:['digital','crm']};
+  } else {
+    return {palanca: frecuenciaCae
+        ? 'Revisar CRM/automatizaciones y disponibilidad de SKUs clave; la frecuencia de recompra está cayendo.'
+        : 'Revisar CRM/automatizaciones y disponibilidad de SKUs clave.',
+      dueno:'CRM — escalar (stock: acción directa)', showPlan:false, groups:[]};
   }
-  *{box-sizing:border-box;}
-  body{margin:0;background:var(--bg-page);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;}
-  .wrap{max-width:640px;margin:0 auto;padding:28px 20px 60px;}
-  .top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px;}
-  .top h1{font-size:19px;font-weight:600;margin:0 0 4px;letter-spacing:-0.01em;}
-  .top p{font-size:13px;color:var(--ink-secondary);margin:0;}
-  .btn-clear{background:none;border:1px solid var(--border-strong);color:var(--ink-secondary);font-family:var(--sans);font-size:12px;padding:6px 10px;border-radius:6px;cursor:pointer;white-space:nowrap;}
-  .btn-clear:hover{border-color:var(--ink-muted);color:var(--ink);}
+}
 
-  .row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid var(--border);}
-  .row:last-child{border-bottom:none;}
-  .row label{font-size:13.5px;color:var(--ink-secondary);}
-  .row input[type=number], .row input[type=text]{width:118px;text-align:right;font-family:var(--mono);font-size:14px;padding:7px 9px;border:1px solid var(--border-strong);border-radius:6px;background:var(--bg-card);color:var(--ink);}
-  .row input[type=date]{font-family:var(--sans);font-size:13px;padding:6px 8px;border:1px solid var(--border-strong);border-radius:6px;background:var(--bg-card);color:var(--ink);}
-  .row select{font-family:var(--sans);font-size:13.5px;padding:7px 9px;border:1px solid var(--border-strong);border-radius:6px;background:var(--bg-card);color:var(--ink);max-width:200px;}
-  .row input:focus, .row select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft);}
-  .canal-row{margin-bottom:14px;}
+function computeAll(){
+  var canal = document.getElementById('sel-canal').value;
+  var sesLabel = canalEsDirecto(canal) ? 'Interacciones' : 'Sesiones';
+  var crLabel = canalEsDirecto(canal) ? 'Tasa de cierre' : 'CR';
 
-  .btn-row{display:flex;gap:10px;margin-top:18px;}
-  .btn-save{flex:1;background:var(--ink);color:#fff;border:none;border-radius:8px;padding:12px;font-family:var(--sans);font-size:14px;font-weight:500;cursor:pointer;}
-  .btn-save:hover{background:#26343F;}
-  .btn-copy{flex:1;background:var(--bg-card);color:var(--ink);border:1px solid var(--border-strong);border-radius:8px;padding:12px;font-family:var(--sans);font-size:14px;font-weight:500;cursor:pointer;}
-  .btn-copy:hover{border-color:var(--ink-muted);}
+  var meta=num('inp-meta'), diasT=num('inp-dias-t'), diasTotal=num('inp-dias-total'), ventaActual=num('inp-venta-actual');
+  var umbral = document.getElementById('inp-umbral').value===''? -5 : num('inp-umbral');
+  var pctTiempo = diasTotal>0 ? diasT/diasTotal : 0;
+  var ventaEsperada = meta*pctTiempo;
+  var brechaAbs = ventaActual-ventaEsperada;
+  var brechaPct = ventaEsperada!==0 ? (brechaAbs/ventaEsperada*100) : null;
+  var estado, estadoClass;
+  if(ventaEsperada===0){ estado='Completa el pacing'; estadoClass='estado-muted'; }
+  else if(brechaPct<=umbral){ estado='En riesgo'; estadoClass='estado-danger'; }
+  else if(brechaPct<0){ estado='Por ajustar'; estadoClass='estado-warning'; }
+  else { estado='En línea'; estadoClass='estado-success'; }
 
-  .banner{border-radius:10px;padding:16px 18px;margin-bottom:8px;border:1px solid var(--border);}
-  .banner-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;}
-  .banner-estado{font-size:15px;font-weight:600;}
-  .banner-brecha{font-family:var(--mono);font-size:22px;font-weight:600;}
-  .banner-sub{font-size:12px;color:var(--ink-secondary);margin-top:6px;}
-  .estado-danger{background:var(--danger-soft);}
-  .estado-danger .banner-estado, .estado-danger .banner-brecha{color:var(--danger);}
-  .estado-warning{background:var(--warning-soft);}
-  .estado-warning .banner-estado, .estado-warning .banner-brecha{color:var(--warning);}
-  .estado-success{background:var(--success-soft);}
-  .estado-success .banner-estado, .estado-success .banner-brecha{color:var(--success);}
-  .estado-muted{background:var(--bg-card);}
-  .estado-muted .banner-estado, .estado-muted .banner-brecha{color:var(--ink-muted);}
+  var resultado01 = null;
+  if(pctTiempo>0 && meta>0){
+    var cierreProyectado = ventaActual/pctTiempo;
+    var cierrePct = cierreProyectado/meta*100;
+    resultado01 = 'Al ritmo actual, vas a cerrar el período en '+fmtMoney(cierreProyectado)+' ('+cierrePct.toFixed(0)+'% de la meta).';
+  }
 
-  .section-head{display:flex;align-items:baseline;gap:9px;margin:34px 0 4px;}
-  .section-num{font-family:var(--mono);color:var(--accent);font-size:13px;}
-  .section-title{font-size:16px;font-weight:600;}
-  .section-hint{font-size:12.5px;color:var(--ink-muted);margin:0 0 10px;}
+  var yoyBase=num('inp-yoy-base'), momBase=num('inp-mom-base');
+  var yoyPct = yoyBase>0 ? ((ventaActual/yoyBase)-1)*100 : null;
+  var momPct = momBase>0 ? ((ventaActual/momBase)-1)*100 : null;
+  var lecturaContexto='';
+  if(yoyPct!==null && momPct!==null){
+    var caso;
+    if(yoyPct>=0 && momPct>=0) caso='Crecimiento saludable, sin señal de alarma reciente.';
+    else if(yoyPct>=0 && momPct<0) caso='La base anual es sana; la caída es reciente y puntual — foco operativo.';
+    else if(yoyPct<0 && momPct>=0) caso='Arrastre estructural o estacional; la mejora reciente todavía no revierte la base.';
+    else caso='Caída estructural y reciente a la vez — revisar ambos frentes.';
+    lecturaContexto='Con un YoY de '+fmtPct(yoyPct)+' y un MoM de '+fmtPct(momPct)+': '+caso;
+  }
 
-  .help{margin:0 0 14px;}
-  .help summary{cursor:pointer;font-size:12px;color:var(--accent);list-style:none;display:inline-flex;align-items:center;gap:5px;}
-  .help summary::-webkit-details-marker{display:none;}
-  .help summary::before{content:'?';display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;border:1px solid var(--accent);font-size:10px;flex-shrink:0;}
-  .help[open] summary{margin-bottom:8px;}
-  .help-body{font-size:12.5px;color:var(--ink-secondary);line-height:1.65;background:var(--bg-page);border-radius:8px;padding:11px 13px;}
-  .help-body p{margin:0 0 8px;}
-  .help-body p:last-child{margin-bottom:0;}
-  .help-body b{color:var(--ink);font-weight:600;}
-  .help.apoyo summary{color:var(--warning);}
-  .help.apoyo summary::before{border-color:var(--warning);color:var(--warning);}
+  var sesA=num('inp-ses-a'), sesB=num('inp-ses-b'), crA=num('inp-cr-a'), crB=num('inp-cr-b'), aovA=num('inp-aov-a'), aovB=num('inp-aov-b');
+  var efSes=(sesA-sesB)*(crB/100)*aovB;
+  var efCR=sesA*((crA-crB)/100)*aovB;
+  var efAOV=sesA*(crA/100)*(aovA-aovB);
+  var ventaCalcActual = sesA*(crA/100)*aovA;
+  var reconciliaPct = null;
+  if(ventaActual>0 && ventaCalcActual>0){ reconciliaPct = (ventaCalcActual-ventaActual)/ventaActual*100; }
 
-  .card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:4px 16px;}
+  var drivers=[{name:'sesiones',label:sesLabel,val:efSes},{name:'cr',label:crLabel,val:efCR},{name:'aov',label:'AOV',val:efAOV}];
+  var sorted=drivers.slice().sort(function(a,b){return a.val-b.val;});
+  var primary = sorted[0].val<0 ? sorted[0] : null;
+  var maxAbs1=Math.max(Math.abs(efSes),Math.abs(efCR),Math.abs(efAOV),1);
+  var resultado03 = primary
+    ? primary.label+' explica '+fmtMoney(Math.abs(primary.val))+' de la brecha, el driver con mayor efecto entre los tres.'
+    : ((sesA||crA||aovA) ? 'Ningún factor muestra un efecto negativo dominante todavía.' : null);
 
-  .out{display:flex;align-items:center;justify-content:space-between;padding:9px 0;font-size:13.5px;}
-  .out .v{font-family:var(--mono);font-weight:500;}
-  .out .l{color:var(--ink-secondary);}
+  var pnA=num('inp-pn-a'), pnB=num('inp-pn-b'), prA=num('inp-pr-a'), prB=num('inp-pr-b'), frA=num('inp-fr-a'), frB=num('inp-fr-b');
+  var deltaN=pnA-pnB, deltaR=prA-prB;
+  var maxAbs2=Math.max(Math.abs(deltaN),Math.abs(deltaR),1);
+  var frecuenciaCae = frB>0 && frA<frB;
 
-  .bars{margin:14px 0 6px;}
-  .bar-row{margin-bottom:12px;}
-  .bar-label{display:flex;justify-content:space-between;font-size:12.5px;color:var(--ink-secondary);margin-bottom:5px;}
-  .bar-label .v{font-family:var(--mono);color:var(--ink);}
-  .bar-track{background:var(--bg-page);border-radius:4px;height:8px;overflow:hidden;}
-  .bar-fill{height:100%;border-radius:4px;width:0%;transition:width .2s ease;}
+  var umbralDrill = document.getElementById('inp-umbral-drill').value===''? -5 : num('inp-umbral-drill');
 
-  .note{font-size:12.5px;padding:9px 11px;border-radius:6px;margin-top:10px;}
-  .note-warning{background:var(--warning-soft);color:var(--warning);}
-  .note-resultado{background:var(--accent-soft);color:var(--ink);}
-  .note-muted{background:var(--bg-page);color:var(--ink-secondary);}
+  var subcausa=null, causaCorta='Completa las secciones anteriores.', palanca='—', dueno='—';
+  var deviceLabel=null, categoryLabel=null, skuCount=0, showPlan=false, groups=[];
+  var cats=[], anySku=false, categoryTopVar=null, deviceTopVar=null, resultado04a=null, resultado04b=null, resultado04c=null;
+  var driverLbl = primary ? primary.label : 'Pedidos';
+  var causaSecundaria = null, palancaSecundaria=null, duenoSecundaria=null, showPlanSecundario=false, groupsSecundario=[];
 
-  .synth{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-top:14px;}
-  .synth .k{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-muted);margin:14px 0 3px;}
-  .synth .k:first-child{margin-top:0;}
-  .synth .v{font-size:14px;margin:0;line-height:1.6;color:var(--ink-secondary);}
-  .synth .v.owner{font-size:14.5px;font-weight:600;color:var(--accent);}
-  .synth .v.warn{color:var(--warning);}
+  var recurrentesProblema = deltaR<0 && deltaR<deltaN;
+  var nuevosProblema = deltaN<0 && deltaN<=deltaR;
+  var resultado04 = null;
+  if(recurrentesProblema) resultado04 = 'La caída se concentra en clientes recurrentes ('+fmtNum(deltaR)+' pedidos vs. '+fmtNum(deltaN)+' en nuevos).';
+  else if(nuevosProblema) resultado04 = 'La caída se concentra en clientes nuevos ('+fmtNum(deltaN)+' pedidos vs. '+fmtNum(deltaR)+' en recurrentes).';
+  else if(deltaN!==0 || deltaR!==0) resultado04 = 'No hay una concentración clara entre nuevos y recurrentes.';
 
-  .badge-validacion{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.03em;padding:4px 9px;border-radius:5px;margin-bottom:12px;background:var(--warning-soft);color:var(--warning);}
-  .badge-validacion.confirmada{background:var(--success-soft);color:var(--success);}
-  .badge-validacion.rechazada{background:var(--danger-soft);color:var(--danger);}
+  subcausa = recurrentesProblema ? 'recurrentes' : (nuevosProblema ? 'nuevos' : null);
 
-  .apoyo-title{font-size:12px;font-weight:600;color:var(--warning);margin:0 0 8px;}
-  .copiloto-block{margin-top:10px;}
-  .chk-label{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;color:var(--ink-secondary);}
-  .hip-label{display:flex;gap:8px;align-items:flex-start;padding:6px 0;font-size:13px;color:var(--ink-secondary);}
-  .hip-label input{margin-top:3px;}
-  textarea{font-family:var(--sans);font-size:13px;color:var(--ink);width:100%;border:1px solid var(--border-strong);border-radius:6px;padding:9px 10px;resize:vertical;}
+  if(subcausa==='recurrentes'){
+    var deskVar=num('inp-device-desktop'), mobVar=num('inp-device-mobile');
+    if(deskVar!==0 || mobVar!==0){ deviceLabel = deskVar<mobVar ? 'Desktop' : (mobVar<deskVar ? 'Mobile' : null); }
+    if(deviceLabel) deviceTopVar = deskVar<mobVar ? deskVar : mobVar;
+    resultado04a = deviceLabel ? ('El dispositivo más afectado es '+deviceLabel+'.') : ((deskVar!==0||mobVar!==0) ? 'Ningún dispositivo muestra una diferencia clara todavía.' : null);
 
-  .hist-item{padding:10px 0;border-bottom:1px solid var(--border);font-size:12.5px;}
-  .hist-item:last-child{border-bottom:none;}
-  .hist-item .r1{display:flex;justify-content:space-between;align-items:center;}
-  .hist-date{font-family:var(--mono);color:var(--ink-secondary);}
-  .hist-mid{color:var(--ink-secondary);flex:1;padding:0 10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .hist-brecha{font-family:var(--mono);font-weight:500;}
-  .hist-impacto{font-size:11.5px;color:var(--ink-muted);margin-top:3px;}
-  .empty-hist{font-size:12.5px;color:var(--ink-muted);padding:10px 0;}
+    document.querySelectorAll('#cat-rows-container .cat-row').forEach(function(row){
+      var cn = row.querySelector('.cat-name').value.trim();
+      if(cn!==''){ var cv=parseFloat(row.querySelector('.cat-var').value); cats.push({name:cn, val:isNaN(cv)?0:cv}); }
+    });
+    if(cats.length){ cats.sort(function(a,b){return a.val-b.val;}); categoryTopVar=cats[0].val; if(cats[0].val<umbralDrill) categoryLabel=cats[0].name; }
+    resultado04b = categoryLabel ? ('La categoría concentradora es '+categoryLabel+' (variación '+fmtPct(categoryTopVar)+').') : (cats.length ? 'Ninguna categoría supera el umbral mínimo definido.' : 'Todavía no cargaste categorías.');
 
-  .thead{display:grid;grid-template-columns:1fr 58px 58px;gap:8px;padding:8px 0 6px;font-size:11px;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.03em;}
-  .thead.sku{grid-template-columns:1fr 50px 50px 78px 22px;}
-  .subrow{display:grid;grid-template-columns:1fr 58px 58px;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);}
-  .subrow.sku{grid-template-columns:1fr 50px 50px 78px 22px;}
-  .subrow:last-child{border-bottom:none;}
-  .subrow input[type=text]{width:100%;font-family:var(--sans);font-size:12.5px;padding:6px 7px;border:1px solid var(--border-strong);border-radius:6px;background:var(--bg-card);color:var(--ink);text-align:left;}
-  .subrow input[type=number]{width:100%;font-family:var(--mono);font-size:12.5px;padding:6px 5px;border:1px solid var(--border-strong);border-radius:6px;background:var(--bg-card);color:var(--ink);text-align:right;}
-  .subrow select{width:100%;font-family:var(--sans);font-size:11.5px;padding:6px 4px;border:1px solid var(--border-strong);border-radius:6px;background:var(--bg-card);color:var(--ink);}
-  .btn-row-remove{width:100%;height:100%;min-height:30px;background:none;border:1px solid var(--border-strong);border-radius:6px;color:var(--ink-muted);font-size:13px;line-height:1;cursor:pointer;}
-  .btn-row-remove:hover{border-color:var(--danger);color:var(--danger);}
-  .btn-add-row{width:100%;background:none;border:1px dashed var(--border-strong);border-radius:8px;color:var(--accent);font-family:var(--sans);font-size:13px;padding:9px;cursor:pointer;margin:10px 0 4px;}
-  .btn-add-row:hover{border-color:var(--accent);background:var(--accent-soft);}
+    document.querySelectorAll('#sku-rows-container .sku-row').forEach(function(row){
+      var sn = row.querySelector('.sku-name').value.trim();
+      if(sn===''){ return; }
+      anySku=true;
+      var sv=parseFloat(row.querySelector('.sku-ses').value); sv=isNaN(sv)?0:sv;
+      var cv=parseFloat(row.querySelector('.sku-cart').value); cv=isNaN(cv)?0:cv;
+      var st=row.querySelector('.sku-stock').value;
+      if(sv>Math.abs(umbralDrill) && cv<0 && st!=='ok') skuCount++;
+    });
+    resultado04c = skuCount>0 ? ('Se identificaron '+skuCount+' SKU'+(skuCount>1?'s':'')+' candidatos a causa raíz por disponibilidad.') : (anySku ? 'Ninguno de los SKUs cargados muestra el patrón de riesgo de stock.' : 'Todavía no cargaste SKUs.');
+  }
 
-  .plan-group h4{font-size:13px;font-weight:600;margin:12px 0 4px;color:var(--ink);}
-  .plan-group h4:first-child{margin-top:0;}
-  .plan-group ul{margin:0 0 4px;padding-left:18px;font-size:12.5px;color:var(--ink-secondary);line-height:1.7;}
+  if(primary && primary.name==='aov'){
+    var sub=document.getElementById('sel-aov-subcausa').value;
+    if(sub==='mix'){ causaCorta='Ticket promedio — mix de categoría'; palanca='Revisar el peso de categorías de menor precio en el mix.'; }
+    else if(sub==='promo'){ causaCorta='Ticket promedio — presión promocional'; palanca='Revisar profundidad y alcance de los descuentos activos.'; }
+    else { causaCorta='Ticket promedio — falta de cross-sell'; palanca='Reforzar recomendaciones y bundles en el checkout.'; }
+    dueno='Acción directa';
+
+    if(subcausa==='recurrentes'){
+      causaSecundaria = 'Señal secundaria: los pedidos de clientes recurrentes cayeron ('+fmtNum(deltaR)+' vs. '+fmtNum(deltaN)+' en nuevos)'+(deviceLabel?' en '+deviceLabel.toLowerCase():'')+(categoryLabel?', dentro de '+categoryLabel:'')+'. Es independiente del ticket promedio — no implica que explique la caída de AOV, pero merece su propia investigación.';
+      var p2 = planRecurrentes(skuCount, deviceLabel, categoryLabel, frecuenciaCae);
+      palancaSecundaria = p2.palanca; duenoSecundaria = p2.dueno; showPlanSecundario = p2.showPlan; groupsSecundario = p2.groups;
+    } else if(subcausa==='nuevos'){
+      causaSecundaria = 'Señal secundaria: los pedidos de clientes nuevos cayeron ('+fmtNum(deltaN)+' vs. '+fmtNum(deltaR)+' en recurrentes). Es independiente del ticket promedio — no implica que explique la caída de AOV, pero merece su propia investigación.';
+      palancaSecundaria = 'Revisar calidad e inversión de tráfico pago (Google/Meta) y SEO.';
+      duenoSecundaria = 'Marketing — escalar';
+    }
+  } else if(subcausa==='recurrentes'){
+    causaCorta = driverLbl+' — clientes recurrentes'+(deviceLabel?' — '+deviceLabel:'')+(categoryLabel?' — '+categoryLabel:'');
+    var p = planRecurrentes(skuCount, deviceLabel, categoryLabel, frecuenciaCae);
+    palanca=p.palanca; dueno=p.dueno; showPlan=p.showPlan; groups=p.groups;
+  } else if(subcausa==='nuevos'){
+    causaCorta=driverLbl+' — adquisición de clientes nuevos';
+    palanca='Revisar calidad e inversión de tráfico pago (Google/Meta) y SEO.';
+    dueno='Marketing — escalar';
+  } else if(deltaN===0 && deltaR===0){
+    if(primary){
+      causaCorta = primary.label+' es el driver, pero falta el desglose de nuevos vs. recurrentes.';
+      palanca='Completa la sección 04 para afinar la causa.';
+    } else if(sesA||crA||aovA){
+      causaCorta='Sin driver negativo dominante en el desglose de nivel 1.';
+      palanca='Revisar factores externos (días hábiles, catálogo, feriados) o ampliar la ventana de comparación.';
+    }
+  } else {
+    causaCorta='Sin concentración clara entre nuevos y recurrentes.';
+    palanca='Revisar los montos cargados en la sección 04.';
+  }
+
+  var notaValidar = skuCount>0;
+  var narrativa=null;
+  if(primary || subcausa){
+    var frase1;
+    if(primary){
+      var othersHealthy = drivers.filter(function(d){return d.name!==primary.name;}).every(function(d){return d.val>=0;});
+      frase1='La brecha de '+fmtMoney(Math.abs(brechaAbs))+' contra meta está explicada principalmente por '+driverWord(primary.name, canal)+(othersHealthy?', sin señales relevantes en los otros dos factores.':'.');
+    } else {
+      frase1='La brecha de '+fmtMoney(Math.abs(brechaAbs))+' contra meta se concentra en una caída de pedidos.';
+    }
+    var frases=[frase1];
+    if(primary && primary.name==='aov'){
+      if(causaSecundaria) frases.push(causaSecundaria);
+    } else if(subcausa==='recurrentes'){
+      var lugar='clientes recurrentes'+(deviceLabel?' en '+deviceLabel.toLowerCase():'')+(categoryLabel?', principalmente dentro de '+categoryLabel:'');
+      frases.push('Los pedidos disminuyeron '+(primary?'por '+(primary.name==='cr'?driverWord('cr',canal):driverWord('sesiones',canal))+', ':'')+'concentrada en '+lugar+'.');
+      if(skuCount>0){
+        frases.push('Dentro de'+(categoryLabel?' '+categoryLabel:' la categoría analizada')+' se identificaron '+skuCount+' SKU'+(skuCount>1?'s':'')+' de alta demanda con disponibilidad reducida o agotada, mientras las sesiones crecían. Esto sugiere intención de compra con menor capacidad de convertirla.');
+      }
+    } else if(subcausa==='nuevos'){
+      frases.push('El deterioro se concentra en la adquisición de clientes nuevos.');
+    }
+    narrativa = frases.join(' ');
+  }
+
+  var peorCanal = null, canalesList = [];
+  document.querySelectorAll('#canales-rows-container .canales-row').forEach(function(row){
+    var n = row.querySelector('.acq-canal').value.trim();
+    if(n){
+      var sb = parseFloat(row.querySelector('.acq-sb').value)||0;
+      var sa = parseFloat(row.querySelector('.acq-sa').value)||0;
+      var c = parseFloat(row.querySelector('.acq-c').value)||0;
+      var aov = parseFloat(row.querySelector('.acq-aov').value)||0;
+      var cr = sa>0 ? (c/sa*100) : 0;
+      canalesList.push({name:n, delta:sa-sb, cr:cr, aov:aov});
+    }
+  });
+  if(canalesList.length>0){
+    canalesList.sort(function(a,b){ return a.delta-b.delta; });
+    peorCanal = canalesList[0];
+    peorCanal.perdidaEstimada = Math.abs(Math.min(peorCanal.delta,0))*(peorCanal.cr/100)*peorCanal.aov;
+  }
+
+  var dSes=num('fun-ses-d'), dPdp=num('fun-pdp-d'), dAtc=num('fun-atc-d'), dChk=num('fun-chk-d'), dPur=num('fun-pur-d');
+  var mSes=num('fun-ses-m'), mPdp=num('fun-pdp-m'), mAtc=num('fun-atc-m'), mChk=num('fun-chk-m'), mPur=num('fun-pur-m');
+  var paseD=[{s:'Sesiones → PDP',r:dSes>0?dPdp/dSes:0},{s:'PDP → Add to cart',r:dPdp>0?dAtc/dPdp:0},{s:'Add to cart → Checkout',r:dAtc>0?dChk/dAtc:0},{s:'Checkout → Compra',r:dChk>0?dPur/dChk:0}];
+  var paseM=[{s:'Sesiones → PDP',r:mSes>0?mPdp/mSes:0},{s:'PDP → Add to cart',r:mPdp>0?mAtc/mPdp:0},{s:'Add to cart → Checkout',r:mAtc>0?mChk/mAtc:0},{s:'Checkout → Compra',r:mChk>0?mPur/mChk:0}];
+  var peorPaseD = paseD.filter(function(p){return p.r>0;}).sort(function(a,b){return a.r-b.r;})[0] || null;
+  var peorPaseM = paseM.filter(function(p){return p.r>0;}).sort(function(a,b){return a.r-b.r;})[0] || null;
+
+  return {canal:canal, meta:meta, ventaActual:ventaActual, ventaEsperada:ventaEsperada, brechaAbs:brechaAbs, brechaPct:brechaPct,
+    estado:estado, estadoClass:estadoClass, yoyPct:yoyPct, momPct:momPct, lecturaContexto:lecturaContexto,
+    efSes:efSes, efCR:efCR, efAOV:efAOV, maxAbs1:maxAbs1, primary:primary, subcausa:subcausa, reconciliaPct:reconciliaPct, ventaCalcActual:ventaCalcActual,
+    deltaN:deltaN, deltaR:deltaR, maxAbs2:maxAbs2, frecuenciaCae:frecuenciaCae,
+    deviceLabel:deviceLabel, categoryLabel:categoryLabel, skuCount:skuCount, categoryTopVar:categoryTopVar, deviceTopVar:deviceTopVar,
+    causaCorta:causaCorta, palanca:palanca, dueno:dueno, notaValidar:notaValidar, narrativa:narrativa,
+    showPlan:showPlan, groups:groups,
+    resultado01:resultado01, resultado03:resultado03, resultado04:resultado04,
+    resultado04a:resultado04a, resultado04b:resultado04b, resultado04c:resultado04c, causaSecundaria:causaSecundaria,
+    palancaSecundaria:palancaSecundaria, duenoSecundaria:duenoSecundaria, showPlanSecundario:showPlanSecundario, groupsSecundario:groupsSecundario,
+    peorCanal:peorCanal, peorPaseD:peorPaseD, peorPaseM:peorPaseM};
+}
+
+function setNote(id, text){
+  var el = document.getElementById(id);
+  if(text){ el.style.display='block'; el.textContent=text; } else { el.style.display='none'; }
+}
+
+function setBar(fillId,valId,value,maxAbs){
+  var fill=document.getElementById(fillId), val=document.getElementById(valId);
+  var pct=Math.min(100, Math.abs(value)/maxAbs*100);
+  fill.style.width=pct+'%';
+  fill.style.background = value<0 ? 'var(--danger)' : 'var(--accent)';
+  val.textContent=fmtMoney(value);
+}
+
+function buildGroupsHtml(groups){
+  var html='';
+  groups.forEach(function(g){
+    html += '<h4>'+LEVER_NAMES[g]+'</h4><ul>';
+    LEVERS[g].forEach(function(item){ html += '<li>'+item+'</li>'; });
+    html += '</ul>';
+  });
+  return html;
+}
+
+function renderPlan(r){
+  var el=document.getElementById('plan-accion');
+  var elGen=document.getElementById('plan-general');
+
+  if(!r.causaSecundaria){
+    elGen.style.display='none';
+    if(!r.showPlan){ el.style.display='none'; return; }
+    el.style.display='block';
+    el.innerHTML = buildGroupsHtml(r.groups);
+    return;
+  }
+
+  el.style.display='none';
+  if(!r.showPlan && !r.showPlanSecundario){ elGen.style.display='none'; return; }
+  elGen.style.display='block';
+  var html = '<h4 style="color:var(--accent);">Principal — '+r.dueno+'</h4>'
+    + '<p style="margin:0 0 8px;font-size:12.5px;color:var(--ink-secondary);">'+r.palanca+'</p>'
+    + buildGroupsHtml(r.groups)
+    + '<h4 style="color:var(--warning);margin-top:16px;">Secundario — '+r.duenoSecundaria+'</h4>'
+    + '<p style="margin:0 0 8px;font-size:12.5px;color:var(--ink-secondary);">'+r.palancaSecundaria+'</p>'
+    + buildGroupsHtml(r.groupsSecundario);
+  elGen.innerHTML = html;
+}
+
+function detectarSenales(r){
+  var s = [];
+  if(r.subcausa==='nuevos'){
+    s.push({id:'nuevos', impacto:3, label:'Clientes nuevos cayeron ('+fmtNum(r.deltaN)+' vs. '+fmtNum(r.deltaR)+' recurrentes)',
+      revisar:'Adquisición de clientes nuevos',
+      porQue:'Los pedidos de nuevos son el segmento que más explica la variación de pedidos.',
+      datos:'Fuente/medio, SEO, Paid Media, landing pages, mix de adquisición.'});
+  }
+  if(r.subcausa==='recurrentes'){
+    s.push({id:'recurrentes', impacto:3, label:'Clientes recurrentes cayeron ('+fmtNum(r.deltaR)+' vs. '+fmtNum(r.deltaN)+' nuevos)',
+      revisar:'Retención y recompra de clientes recurrentes',
+      porQue:'Los pedidos de recurrentes son el segmento que más explica la variación de pedidos.',
+      datos:'Frecuencia histórica, días desde última compra, CRM.'});
+  }
+  if(r.deviceLabel){
+    s.push({id:'device', impacto:2, device:r.deviceLabel, label:r.deviceLabel+(r.deviceTopVar!==null?' ('+fmtPct(r.deviceTopVar)+' CR)':'')+' concentra la caída entre recurrentes',
+      revisar:'Experiencia en '+r.deviceLabel,
+      porQue:'La caída de conversión entre clientes recurrentes se concentra en '+r.deviceLabel.toLowerCase()+'.',
+      datos:'Sesiones y CR por dispositivo, funnel segmentado, grabaciones de sesión.'});
+  }
+  if(r.categoryLabel){
+    s.push({id:'categoria', impacto:2, categoria:r.categoryLabel, label:'Categoría '+r.categoryLabel+(r.categoryTopVar!==null?' ('+fmtPct(r.categoryTopVar)+' CR)':'')+' concentra la caída',
+      revisar:'Categoría '+r.categoryLabel,
+      porQue:'Es la categoría con mayor variación negativa de CR entre clientes recurrentes.',
+      datos:'CR, tráfico y disponibilidad de '+r.categoryLabel+'.'});
+  }
+  if(r.skuCount>0){
+    s.pus
