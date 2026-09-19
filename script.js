@@ -1548,7 +1548,8 @@ if(canalActual==='global'){ renderVistaGlobal(); } else { recalc(); }
 // Coloca aquí tu API Key para uso local.
 // NO crear ningún campo visible en la interfaz para introducirla.
 const GEMINI_API_KEY = "AQ.Ab8RN6Ir9gzPuKt3f-kc6b95xJ3AFQXUbjpE_0uph-EbJ6kp0Q";
-const GEMINI_MODEL = "gemini-3.8-flash";
+const GEMINI_MODEL = "gemini-1.5-flash";
+
 
 // Arma el contexto estructurado real del diagnóstico (no depende del texto
 // visual renderizado): reutiliza buildReporte(r) para el resumen narrativo,
