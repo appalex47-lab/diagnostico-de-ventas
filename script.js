@@ -1547,7 +1547,7 @@ if(canalActual==='global'){ renderVistaGlobal(); } else { recalc(); }
 // Restringila en Google Cloud Console (por referrer/IP y cuota) antes de usarla aquí.
 // Coloca aquí tu API Key para uso local.
 // NO crear ningún campo visible en la interfaz para introducirla.
-const GEMINI_API_KEY = "AQ.Ab8RN6Ir9gzPuKt3f-kc6b95xJ3AFQXUbjpE_0uph-EbJ6kp0Q";
+const GEMINI_API_KEY = "AQ.Ab8RN6Kt1UoLOSXtsad8H3xdpT63WgH7TRHpAYJgacviGLZPCQ";
 const GEMINI_MODEL = "gemini-1.5-flash";
 
 
